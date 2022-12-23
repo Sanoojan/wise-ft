@@ -4,7 +4,7 @@ import time
 import tqdm
 
 import torch
-
+import torch.nn.functional as F
 import clip.clip as clip
 
 from src.args import parse_arguments
@@ -12,6 +12,7 @@ from src.datasets.common import get_dataloader, maybe_dictionarize
 from src.models.eval import evaluate
 from src.models.modeling import ClassificationHead, ImageEncoder, ImageClassifier
 from src.models.utils import cosine_lr, torch_load, LabelSmoothing
+from src.models.zeroshot import get_zeroshot_classifier
 
 import src.datasets as datasets
 
@@ -19,8 +20,31 @@ import src.datasets as datasets
 def finetune(args):
     assert args.load is not None, "Please provide the patch to a checkpoint through --load."
     assert args.train_dataset is not None, "Please provide a training dataset."
-    
-    
+    mix=False
+    uniform_random_mixup=False
+    zero_shot=False
+    distill=True
+    print('mix:', mix)
+    print('uniform_random_mixup:', uniform_random_mixup)
+    print('distill:', distill)
+
+    if distill:
+        zero_shot = True
+        wd = 1.0
+        temp=5.0
+        distillation_type='soft'
+        print('wd:', wd)
+        print('temp:', temp)
+        print('distillation_type:', distillation_type)
+
+    if zero_shot:
+        image_encoder = ImageEncoder(args, keep_lang=True)
+        classification_head = get_zeroshot_classifier(args, image_encoder.model)
+        delattr(image_encoder.model, 'transformer')
+        zero_shot_model = ImageClassifier(image_encoder, classification_head, process_images=True)   
+        zero_shot_model = zero_shot_model.cuda()
+        zero_shot_model = torch.nn.DataParallel(zero_shot_model, device_ids=list(range(torch.cuda.device_count()))) 
+        print(torch.cuda.device_count())
     image_classifier = ImageClassifier.load(args.load)
 
     if args.freeze_encoder:
@@ -51,12 +75,16 @@ def finetune(args):
     devices = list(range(torch.cuda.device_count()))
     print('Using devices', devices)
     model = torch.nn.DataParallel(model, device_ids=devices)
+    # ImageEncoder=torch.nn.DataParallel(model.module.image_encoder,device_ids=devices)
+    # ImageEncoder.train()
     model.train()
 
     if args.ls > 0:
         loss_fn = LabelSmoothing(args.ls)
+    elif uniform_random_mixup:
+        loss_fn = torch.nn.CrossEntropyLoss(reduction='none')
     else:
-        loss_fn = torch.nn.CrossEntropyLoss()
+        loss_fn = torch.nn.CrossEntropyLoss()     
 
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(params, lr=args.lr, weight_decay=args.wd)
@@ -64,6 +92,7 @@ def finetune(args):
     scheduler = cosine_lr(optimizer, args.lr, args.warmup_length, args.epochs * num_batches)
 
     for epoch in range(args.epochs):
+        print("epochs...............................................", epoch)
         model.train()
         data_loader = get_dataloader(
             dataset, is_train=True, args=args, image_encoder=image_enc)
@@ -80,9 +109,67 @@ def finetune(args):
             labels = batch['labels'].cuda()
             data_time = time.time() - start_time
 
-            logits = model(inputs)
 
-            loss = loss_fn(logits, labels)
+            # under implementation
+            if mix:
+                
+                features = model(inputs, return_features=True)
+                feature2= features.clone() # size = 32, 512
+                bs=int(len(features))
+                rand_perm=torch.randperm(bs)   
+                feature2=feature2[rand_perm]
+                label_mixup=labels[rand_perm]
+                feature_mixup = (features+feature2)/2
+                loss1=loss_fn(model.module.classification_head(feature_mixup),labels)
+                loss2=loss_fn(model.module.classification_head(feature_mixup),label_mixup)
+                loss=(loss1+loss2)/2
+                loss+=loss_fn(model.module.classification_head(features),labels)
+                
+            # under implementation
+
+            elif uniform_random_mixup:
+                features = model(inputs, return_features=True)
+                feature2= features.clone()
+                bs=int(len(features))
+                a=torch.rand(int(len(features)),2)
+                sum=torch.sum(a,dim=1,keepdims=True)
+                a=(a*(1)/sum).to("cuda")
+                mixup_features=torch.unsqueeze(a[:,0],dim=1).expand(-1,feature2.shape[1])*feature2
+                
+                # for d in range(1,2):
+                rand_perm=torch.randperm(bs)
+                mixup_features+=torch.unsqueeze(a[:,1],dim=1).expand(-1,feature2.shape[1])*feature2[rand_perm]
+                label_mixup=labels[rand_perm]
+
+                logitsmix = model.module.classification_head(mixup_features)
+                logits = model.module.classification_head(features)
+
+                loss = loss_fn(logitsmix, labels)*a[:,0] + loss_fn(logitsmix, label_mixup)*a[:,1]
+                loss = torch.mean(loss)
+                loss+=torch.mean(loss_fn(model.module.classification_head(features),labels))
+
+            elif distill:
+                logits = model(inputs)
+                logit_zeroshot = zero_shot_model(inputs)
+                loss = loss_fn(logits, labels)
+                if distillation_type == 'soft':
+                    T = temp
+                    distillation_loss = F.kl_div(
+                        F.log_softmax(logits / T, dim=1),
+                        F.log_softmax(logit_zeroshot / T, dim=1),
+                        reduction='sum',
+                        log_target=True
+                    ) * (T * T) / logits.numel()
+            
+                elif distillation_type == 'hard':
+                    distillation_loss =loss_fn(logits, logit_zeroshot.argmax(dim=1))
+                loss+=wd*distillation_loss
+
+
+            else:
+                logits = model(inputs)
+
+                loss = loss_fn(logits, labels)
 
             loss.backward()
 

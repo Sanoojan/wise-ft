@@ -69,9 +69,11 @@ class ImageClassifier(torch.nn.Module):
             self.train_preprocess = self.image_encoder.train_preprocess
             self.val_preprocess = self.image_encoder.val_preprocess
 
-    def forward(self, inputs):
+    def forward(self, inputs,return_feautres=False):
         if self.process_images:
             inputs = self.image_encoder(inputs)
+            if return_feautres:
+                return inputs
         outputs = self.classification_head(inputs)
         return outputs
 

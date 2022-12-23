@@ -1,0 +1,8 @@
+models/
+src/__pycache__/
+src/datasets/__pycache__/
+src/templates/__pycache__/
+Outs/
+clip/__pycache__/
+Results/
+*.out
