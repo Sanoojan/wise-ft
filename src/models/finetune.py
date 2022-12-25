@@ -14,6 +14,7 @@ from src.models.modeling import ClassificationHead, ImageEncoder, ImageClassifie
 from src.models.utils import cosine_lr, torch_load, LabelSmoothing
 
 import src.datasets as datasets
+import torch.nn.functional as F
 
 
 def finetune(args):
@@ -76,13 +77,34 @@ def finetune(args):
             optimizer.zero_grad()
 
             batch = maybe_dictionarize(batch)
-            inputs = batch[input_key].cuda()
+            inputs = batch[input_key]
             labels = batch['labels'].cuda()
+
+            images_all = torch.cat(inputs, 0).cuda()
             data_time = time.time() - start_time
+            logits_all = model(images_all)
+            logits_clean, logits_aug1, logits_aug2 = torch.split(
+                logits_all, inputs[0].size(0))
 
-            logits = model(inputs)
+            # Cross-entropy is only computed on clean images
+            loss = F.cross_entropy(logits_clean, labels)
 
-            loss = loss_fn(logits, labels)
+            p_clean, p_aug1, p_aug2 = F.softmax(
+                logits_clean, dim=1), F.softmax(
+                    logits_aug1, dim=1), F.softmax(
+                        logits_aug2, dim=1)
+
+            # Clamp mixture distribution to avoid exploding KL divergence
+            p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+            loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                            F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                            F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+            
+
+            # logits = model(inputs)
+
+            # loss = loss_fn(logits, labels)
 
             loss.backward()
 
