@@ -138,8 +138,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--augmix_wds",
-        default=3.0 3.0 1.0 ,
-        nargs='*',
+        nargs='+',
         help=(
             'width, depth and sevierity for AugMix. '
         )

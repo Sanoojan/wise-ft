@@ -46,9 +46,10 @@ def aug(image, preprocess,augmix_args=None):
         mixed: Augmented and mixed image.
     """
     if augmix_args is not None:
-        mixture_width=augmix_args[0]
-        mixture_depth=augmix_args[1]
-        aug_severity=augmix_args[2]
+        width,depth,severity=augmix_args[0].split()
+        mixture_width=int(width)
+        mixture_depth=int(depth)
+        aug_severity=float(severity)
     aug_list = augmentations.augmentations
     if all_ops:
         aug_list = augmentations.augmentations_all

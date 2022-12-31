@@ -29,6 +29,8 @@ class ImageNet:
         self.classnames = get_classnames(classnames)
         if augmix is not None:
             self.augmix_args=augmix
+        else:
+            self.augmix_args=None
 
         self.populate_train()
         self.populate_test()
@@ -80,7 +82,7 @@ class ImageNet:
         return ImageFolderWithPaths(self.get_test_path(), transform=self.preprocess)
 
     def name(self):
-        return 'imagenet'
+        return 'imagenet_1k'
 
 class ImageNetTrain(ImageNet):
 

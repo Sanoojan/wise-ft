@@ -41,6 +41,7 @@ def finetune(args):
         print_every = 100
     
     dataset_class = getattr(datasets, args.train_dataset)
+    print(args.augmix_wds)
     dataset = dataset_class(
         preprocess_fn,
         location=args.data_location,
