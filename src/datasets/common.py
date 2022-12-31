@@ -27,12 +27,15 @@ class SubsetSampler(Sampler):
 
 
 
-mixture_width = 3
-mixture_depth=2
+# mixture_width = 3
+# mixture_depth=3
 all_ops=False
 no_jsd=False
-aug_severity=1
-def aug(image, preprocess):
+# aug_severity=0.3
+# print('AugMix severity:', aug_severity)
+# print('AugMix width:', mixture_width)
+# print('AugMix depth:', mixture_depth)
+def aug(image, preprocess,augmix_args=None):
     """Perform AugMix augmentations and compute mixture.
 
     Args:
@@ -42,6 +45,10 @@ def aug(image, preprocess):
     Returns:
         mixed: Augmented and mixed image.
     """
+    if augmix_args is not None:
+        mixture_width=augmix_args[0]
+        mixture_depth=augmix_args[1]
+        aug_severity=augmix_args[2]
     aug_list = augmentations.augmentations
     if all_ops:
         aug_list = augmentations.augmentations_all
@@ -87,10 +94,12 @@ class AugMixDataset(torch.utils.data.Dataset):
         return len(self.dataset)
 
 class ImageFolderWithPaths(datasets.ImageFolder):
-    def __init__(self, path, transform,preprocess=None, flip_label_prob=0.0,augmix=False, no_jsd=False):
+    def __init__(self, path, transform,preprocess=None, flip_label_prob=0.0,augmix=False, no_jsd=False,augmix_args=None):
         super().__init__(path, transform)
         self.flip_label_prob = flip_label_prob
         self.augmix = augmix
+        self.augmix_args = augmix_args
+        print('AugMix_args:', augmix_args)
         self.no_jsd = no_jsd
         self.preprocess = preprocess
         if self.flip_label_prob > 0:
@@ -112,8 +121,8 @@ class ImageFolderWithPaths(datasets.ImageFolder):
             else:
                 # convert torch to pil
                 image = transforms.ToPILImage()(image)
-                image = (self.preprocess(image), aug(image, self.preprocess),
-                            aug(image, self.preprocess))
+                image = (self.preprocess(image), aug(image, self.preprocess,augmix_args=self.augmix_args),
+                            aug(image, self.preprocess,augmix_args=self.augmix_args))
         return {
             'images': image,
             'labels': label,

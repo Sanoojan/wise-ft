@@ -136,6 +136,14 @@ def parse_arguments():
         default=1e-8,
         help="TODO",
     )
+    parser.add_argument(
+        "--augmix_wds",
+        default=3.0 3.0 1.0 ,
+        nargs='*',
+        help=(
+            'width, depth and sevierity for AugMix. '
+        )
+    )
     parsed_args = parser.parse_args()
     parsed_args.device = "cuda" if torch.cuda.is_available() else "cpu"
     

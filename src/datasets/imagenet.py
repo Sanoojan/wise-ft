@@ -8,62 +8,11 @@ from src.models.augmentations import *
 from torchvision import transforms
 
 
-mixture_width = 3
-mixture_depth=1
-all_ops=False
-no_jsd=False
-# def aug(image, preprocess):
-#     """Perform AugMix augmentations and compute mixture.
+# mixture_width = 3
+# mixture_depth=1
+# all_ops=False
+# no_jsd=False
 
-#     Args:
-#         image: PIL.Image input image
-#         preprocess: Preprocessing function which should return a torch tensor.
-
-#     Returns:
-#         mixed: Augmented and mixed image.
-#     """
-#     aug_list = augmentations.augmentations
-#     if all_ops:
-#         aug_list = augmentations.augmentations_all
-
-#     ws = np.float32(np.random.dirichlet([1] * mixture_width))
-#     m = np.float32(np.random.beta(1, 1))
-
-#     mix = torch.zeros_like(preprocess(image))
-#     for i in range(mixture_width):
-#         image_aug = image.copy()
-#         depth = mixture_depth if mixture_depth > 0 else np.random.randint(
-#             1, 4)
-#         for _ in range(depth):
-#             op = np.random.choice(aug_list)
-#             image_aug = op(image_aug, args.aug_severity)
-#             # Preprocessing commutes since all coefficients are convex
-#         mix += ws[i] * preprocess(image_aug)
-
-#     mixed = (1 - m) * preprocess(image) + m * mix
-#     return mixed
-
-# class AugMixDataset(torch.utils.data.Dataset):
-#     """Dataset wrapper to perform AugMix augmentation."""
-
-#     def __init__(self, dataset, preprocess, no_jsd=False):
-#         self.dataset = dataset
-#         self.preprocess = preprocess
-#         self.no_jsd = no_jsd
-
-#     def __getitem__(self, i):
-#         print(self.dataset[i])
-#         print(len(self.dataset[i]))
-#         x, y = self.dataset[i]
-#         if self.no_jsd:
-#             return aug(x, self.preprocess), y
-#         else:
-#             im_tuple = (self.preprocess(x), aug(x, self.preprocess),
-#                         aug(x, self.preprocess))
-#             return im_tuple, y
-
-#     def __len__(self):
-#         return len(self.dataset)
 
 
 class ImageNet:
@@ -72,26 +21,28 @@ class ImageNet:
                  location=os.path.expanduser('~/data'),
                  batch_size=32,
                  num_workers=32,
-                 classnames='openai'):
+                 classnames='openai',augmix=None):
         self.preprocess = preprocess
         self.location = location
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.classnames = get_classnames(classnames)
+        if augmix is not None:
+            self.augmix_args=augmix
 
         self.populate_train()
         self.populate_test()
     
     def populate_train(self):
         traindir = os.path.join(self.location, self.name(), 'train')
-        # preprocess = transforms.Compose(
-        #     [transforms.ToTensor(),
-        #     transforms.Normalize([0.5] * 3, [0.5] * 3)])
         preprocess = transforms.Compose(
-            [transforms.ToTensor()])
+            [transforms.ToTensor(),
+            transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))])
+        # preprocess = transforms.Compose(
+        #     [transforms.ToTensor()])
         self.train_dataset = ImageFolderWithPaths(
             traindir,
-            transform=self.preprocess,preprocess=preprocess,augmix=True)
+            transform=self.preprocess,preprocess=preprocess,augmix=True,augmix_args=self.augmix_args)
         
         sampler = self.get_train_sampler()
         kwargs = {'shuffle' : True} if sampler is None else {}

@@ -20,7 +20,7 @@
 #     --alpha 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
 
 export PYTHONPATH="$PYTHONPATH:$PWD"
-NAME="B16-augmix-3-2-1-nopre"
+NAME="B16-augmix-3-3-p5-pre"
 python src/wise_ft.py   \
     --train-dataset=ImageNet  \
     --epochs=10  \
@@ -31,6 +31,7 @@ python src/wise_ft.py   \
     --eval-datasets=ImageNet,ImageNetV2,ImageNetR,ImageNetA,ImageNetSketch \
     --template=openai_imagenet_template  \
     --results-db=Results/${NAME}.jsonl  \
+    --augmix_wds=3.0 3.0 0.5 \
     --save=models/wiseft/${NAME}\\ \
     --data-location=/nfs/users/ext_sanoojan.baliah/Sanoojan/data/ \
     --alpha 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 > Outs/${NAME}.out

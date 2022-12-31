@@ -44,7 +44,8 @@ def finetune(args):
     dataset = dataset_class(
         preprocess_fn,
         location=args.data_location,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        augmix=args.augmix_wds,
     )
     num_batches = len(dataset.train_loader)
 
