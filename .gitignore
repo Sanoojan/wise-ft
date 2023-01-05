@@ -5,4 +5,6 @@ src/templates/__pycache__/
 clip/__pycache__/
 Outs/
 *.out
-models/
+models/wiseft/
+models/__pycache__
+src/models/__pycache__/
