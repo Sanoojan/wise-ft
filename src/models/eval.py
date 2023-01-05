@@ -8,6 +8,7 @@ from src.models import utils
 from src.datasets.common import get_dataloader, maybe_dictionarize
 
 import src.datasets as datasets
+from src.models.calib_metrics import ECELoss, SCELoss
 
 
 def eval_single_dataset(image_classifier, dataset, args):
@@ -31,6 +32,8 @@ def eval_single_dataset(image_classifier, dataset, args):
         all_labels, all_preds, all_metadata = [], [], []
 
     with torch.no_grad():
+        all_targets = None
+        all_outputs = None
         top1, correct, n = 0., 0., 0.
         for i, data in batched_data:
             data = maybe_dictionarize(data)
@@ -48,6 +51,15 @@ def eval_single_dataset(image_classifier, dataset, args):
             if hasattr(dataset, 'project_labels'):
                 y = dataset.project_labels(y, device)
             pred = logits.argmax(dim=1, keepdim=True).to(device)
+
+            targets = y.cpu().numpy()
+            outputs = logits.cpu().numpy()
+            if all_targets is None:
+                all_outputs = outputs
+                all_targets = targets
+            else:
+                all_targets = np.concatenate([all_targets, targets], axis=0)
+                all_outputs = np.concatenate([all_outputs, outputs], axis=0)
             if hasattr(dataset, 'accuracy'):
                 acc1, num_total = dataset.accuracy(logits, y, image_paths, args)
                 correct += acc1
@@ -63,6 +75,9 @@ def eval_single_dataset(image_classifier, dataset, args):
                 all_metadata.extend(metadata)
 
         top1 = correct / n
+        eces = ECELoss().loss(all_outputs, all_targets, n_bins=15)
+        cces = SCELoss().loss(all_outputs, all_targets, n_bins=15)
+        print(f"ece: {eces:.4f}, sce: {cces:.4f}")
 
         if hasattr(dataset, 'post_loop_metrics'):
             all_labels = torch.cat(all_labels)
@@ -74,6 +89,7 @@ def eval_single_dataset(image_classifier, dataset, args):
             metrics = {}
     if 'top1' not in metrics:
         metrics['top1'] = top1
+        metrics['ece'] = eces
     
     return metrics
 
