@@ -85,6 +85,7 @@ def finetune(args):
             images_all = torch.cat(inputs, 0).cuda()
             data_time = time.time() - start_time
             logits_all = model(images_all)
+            # logits_all= logits_all[0] # last layer of the model
             logits_clean, logits_aug1, logits_aug2 = torch.split(
                 logits_all, inputs[0].size(0))
 
@@ -96,11 +97,16 @@ def finetune(args):
                     logits_aug1, dim=1), F.softmax(
                         logits_aug2, dim=1)
 
-            # Clamp mixture distribution to avoid exploding KL divergence
-            p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
-            loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
-                            F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
-                            F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+            
+            
+            if (args.augmix):
+                
+                # Clamp mixture distribution to avoid exploding KL divergence
+                p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+                
+                loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                                F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                                F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
 
             
 

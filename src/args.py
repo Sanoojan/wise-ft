@@ -137,6 +137,18 @@ def parse_arguments():
         help="TODO",
     )
     parser.add_argument(
+        "--self_distillation",
+        default=False,
+        action="store_true",
+        help="Whether to do self distillation."
+    )
+    parser.add_argument(
+        "--augmix",
+        default=False,
+        action="store_true",
+        help="Whether to do augmix training."
+    )
+    parser.add_argument(
         "--augmix_wds",
         nargs='+',
         help=(

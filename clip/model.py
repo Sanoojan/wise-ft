@@ -197,8 +197,14 @@ class Transformer(nn.Module):
         self.layers = layers
         self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, attn_mask) for _ in range(layers)])
 
-    def forward(self, x: torch.Tensor):
-        return self.resblocks(x)
+    def forward(self, x: torch.Tensor,return_all_blocks=False):
+        
+        All_blocks=[]
+        for block in self.resblocks:
+            x = block(x)
+            if return_all_blocks:
+                All_blocks.append(x)
+        return x
 
 
 class VisualTransformer(nn.Module):
@@ -224,7 +230,11 @@ class VisualTransformer(nn.Module):
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor,return_all_blocks=False):
+        #if  model eval mode
+        if not self.training:
+            return_all_blocks=False
+        
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
@@ -233,13 +243,23 @@ class VisualTransformer(nn.Module):
         x = self.ln_pre(x)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
-        x = self.transformer(x)
-        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.transformer(x,return_all_blocks=return_all_blocks)
+        if return_all_blocks:
+            x=[x_i.permute(1, 0, 2) for x_i in x]
+            x = torch.stack([self.ln_post(x_i[:, 0, :]) for x_i in x])
+            if self.proj is not None:
+                x=x @ self.proj
+            
+        else:
+            x = x.permute(1, 0, 2)  # LND -> NLD
+            x = self.ln_post(x[:, 0, :])
+            if self.proj is not None:
+                x = x @ self.proj
+        
 
-        x = self.ln_post(x[:, 0, :])
+        
 
-        if self.proj is not None:
-            x = x @ self.proj
+        
 
         return x
 
