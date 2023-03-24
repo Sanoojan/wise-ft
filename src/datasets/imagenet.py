@@ -61,7 +61,7 @@ class ImageNet:
         return ImageFolderWithPaths(self.get_test_path(), transform=self.preprocess)
 
     def name(self):
-        return 'imagenet'
+        return 'imagenet_1k'
 
 class ImageNetTrain(ImageNet):
 
