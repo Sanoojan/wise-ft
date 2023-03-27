@@ -1,9 +1,4 @@
-#!/bin/bash
-#SBATCH --job-name=self_distill_ece
-#SBATCH --gres gpu:16
-#SBATCH --nodes 1
-#SBATCH --cpus-per-task=60
-#SBATCH --partition=multigpu
+
 
 # python src/wise_ft.py   \
 #     --train-dataset=ImageNet  \
@@ -20,12 +15,12 @@
 #     --alpha 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
 
 export PYTHONPATH="$PYTHONPATH:$PWD"
-NAME="B16-self_distill_1_5"
-python src/wise_ft.py   \
+NAME="B16-self_distill_1_5_check_1"
+CUDA_VISIBLE_DEVICES=6,7 python src/wise_ft.py   \
     --train-dataset=ImageNet  \
     --epochs=10  \
     --lr=0.00003  \
-    --batch-size=512  \
+    --batch-size=5  \
     --cache-dir=cache  \
     --model=ViT-B/16  \
     --eval-datasets=ImageNet,ImageNetV2,ImageNetR,ImageNetA,ImageNetSketch \

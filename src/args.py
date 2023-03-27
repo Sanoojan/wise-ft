@@ -136,6 +136,12 @@ def parse_arguments():
         default=1e-8,
         help="TODO",
     )
+    parser.add_argument(
+        "--self_distillation",
+        default=False,
+        action="store_true",
+        help="Whether or not to use self distillation.",
+    )
     parsed_args = parser.parse_args()
     parsed_args.device = "cuda" if torch.cuda.is_available() else "cpu"
     

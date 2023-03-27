@@ -24,12 +24,17 @@ def finetune(args):
     uniform_random_mixup=False
     zero_shot=False
     distill=True
+    self_distillaiton=True        
     print('mix:', mix)
     print('uniform_random_mixup:', uniform_random_mixup)
     print('distill:', distill)
+    print('self_distillaiton:', self_distillaiton)
 
     if distill:
-        zero_shot = True
+        if self_distillaiton:
+            zero_shot=False
+        else:
+            zero_shot = True
         wd = 1.0
         temp=5.0
         distillation_type='soft'
@@ -149,20 +154,38 @@ def finetune(args):
                 loss+=torch.mean(loss_fn(model.module.classification_head(features),labels))
 
             elif distill:
-                logits = model(inputs)
-                logit_zeroshot = zero_shot_model(inputs)
+                # try:
+                out = model(inputs)
+                
+                logits_early,logits=out[0::2],out[1::2]
+                # dim 2,25,1000 -> 50,1000
+                logits_early=logits_early.reshape((-1,)+logits_early.shape[2:])
+                logits=logits.reshape((-1,)+logits.shape[2:])
+                    # print(logits_early.shape)
+                # except Exception as e:
+                #     print("error:",e)
+                #     print(out.shape)
+                #     exit()
                 loss = loss_fn(logits, labels)
+                if self_distillaiton:
+                    logits_teacher= logits
+                    logits_student= logits_early
+                else:
+                    
+                    logits_teacher = zero_shot_model(inputs)
+                    logits_student=logits
+                
                 if distillation_type == 'soft':
                     T = temp
                     distillation_loss = F.kl_div(
-                        F.log_softmax(logits / T, dim=1),
-                        F.log_softmax(logit_zeroshot / T, dim=1),
+                        F.log_softmax(logits_student / T, dim=1),
+                        F.log_softmax(logits_teacher / T, dim=1),
                         reduction='sum',
                         log_target=True
                     ) * (T * T) / logits.numel()
             
                 elif distillation_type == 'hard':
-                    distillation_loss =loss_fn(logits, logit_zeroshot.argmax(dim=1))
+                    distillation_loss =loss_fn(logits_student, logits_teacher.argmax(dim=1))
                 loss+=wd*distillation_loss
 
 

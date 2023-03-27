@@ -74,7 +74,9 @@ class ImageClassifier(torch.nn.Module):
             inputs = self.image_encoder(inputs)
             if return_feautres:
                 return inputs
+            
         outputs = self.classification_head(inputs)
+        # print('outputs:',outputs.shape)
         return outputs
 
     def save(self, filename):
